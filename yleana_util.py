@@ -19,7 +19,7 @@ def groupData(df,columns,statVar):
     '''
     subDF = df[columns+[statVar]]
     grouped = subDF.groupby(columns,sort=True)
-    groupedDF = grouped.agg([np.size,np.sum, np.mean,np.std])[statVar]
+    groupedDF = grouped.agg([np.size,np.sum, np.mean])[statVar]
     groupedDF = groupedDF.reset_index()
     return groupedDF
 
@@ -144,24 +144,36 @@ def getClassAvg(df,columns=['firstName','type','topic'],statVar='correct',passin
     bar.rename(columns={'size':'numStudentsGivenTopic','mean':'classAvg'},inplace=True)
     return studentPerf,bar
 
-def buildRecTable(df,passingThreshold=0.6,minWrong=5):
+def buildFocusTable(df,studentID,testID,subject,passingThreshold=0.6,minWrong=5):
     '''
     Get a data frame of topics in which this student is farthest behind the rest of the class, weighted by topic weight.
     These are recommendations for further study
     args:
         df: raw dataframe
+        testID: test from which you want to build a recommendation table
+        studentID:student ID integer
+        subject: math, reading, sentence, or writing
         passingThreshold: minimum score to pass 
         minWrong: minimum number of wrong answers to make a recommendation
     returns:
         rec: Dataframe of topics in which this student is farthest behind the rest of the class,
                 ranked by the difference between this student's % correct and the class avg.
     '''
+    
+    #optionally specify a testID, otherwise use all tests
+    if testID is not None:
+        df = df.loc[df['testID']==testID,:].copy()
+    df = df.loc[df['type']==subject,:]
+        
+    #list of topics
     topicsDF = getTopicWeight(df)
-    studentPerf,classPerf = getClassAvg(df,columns=['firstName','type','topic'],statVar='correct',passingThreshold=passingThreshold)
+    
+    #get student and class performance on each topic
+    studentPerf,classPerf = getClassAvg(df,columns=['studentID','type','topic'],statVar='correct',passingThreshold=passingThreshold)
     classPerf = classPerf.sort('numStudentsGivenTopic')
     q1 = pd.merge(studentPerf,classPerf,on=['type','topic'])
     q2 = pd.merge(q1,topicsDF, how='left',on=['type','topic'])
-    rec = q2[['firstName','type','topic','topicWeight','wrong','score','classAvg']].copy()
+    rec = q2[['studentID','type','topic','topicWeight','wrong','score','classAvg']].copy()
     rec['scoreDiff']=rec['score'] - rec['classAvg']
     rec['weightedScoreDiff'] = rec['scoreDiff']*rec['topicWeight']
     
@@ -170,11 +182,8 @@ def buildRecTable(df,passingThreshold=0.6,minWrong=5):
     
     for col in ['topicWeight','score','classAvg','scoreDiff']:
         rec[col] = rec[col].round(2)
-    return rec.sort('weightedScoreDiff',ascending=True)
-
-def recommendForStudent(df,firstName):
-    rec = buildRecTable(df)
-    return rec.loc[rec['firstName']==firstName].head()
+    rec.sort('weightedScoreDiff',ascending=True, inplace=True)
+    return rec.loc[rec['studentID']==studentID].head()
 
 def getTrendsOverTime(df,testString,columns=['type','testNum']):
     if testString=='OL':
