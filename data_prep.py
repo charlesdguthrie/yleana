@@ -45,7 +45,7 @@ def makeStudentIDs(df,index_column_list=['firstName','lastName']):
     unique_students = df.drop_duplicates(index_column_list)
     unique_students.reset_index(inplace=True)
     unique_students = unique_students.loc[:,index_column_list]
-    unique_students.loc[:,'id']=unique_students.index
+    unique_students.loc[:,'studentID']=unique_students.index
     
     df2 = pd.merge(df,unique_students,on=index_column_list)
     
@@ -63,9 +63,8 @@ def createClass(df,students,className):
     df.loc[df['firstName'].isin(students),'class']=className
     return df.loc[df['class']==className,:]
 
-def main():
-	FN = 'RawStudentDifficultyData.csv'
-	rawDF = pd.read_csv(FN)
+def main(fn):
+	rawDF = pd.read_csv(fn)
 	df = clean_data(rawDF)
 	df = addNumTopics(df)
 	df = makeStudentIDs(df)
@@ -73,4 +72,5 @@ def main():
 	return df
 
 if __name__ == '__main__':
-	main()
+    FN = 'data/RawStudentDifficultyData.csv'
+    main(FN)
