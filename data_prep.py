@@ -6,6 +6,18 @@ author:Charlie Guthrie
 import pandas as pd
 import numpy as np
 import yleana_util as yp
+import datetime
+
+#TODO: make this import a csv file
+def addDates(df):
+    '''
+    merge test dates into df
+    '''
+    test_dates = {"testID":["YL_2_PP_SAT_S0112","YL_1_PP_SAT_S0114"],
+                  "testDate":[datetime.datetime(2015,7,5),datetime.datetime(2015,6,26)]
+                 }
+    datesDF = pd.DataFrame.from_dict(test_dates)
+    return pd.merge(df,datesDF)
 
 def countNullQuestions(df):
     '''
@@ -39,6 +51,24 @@ def clean_data(df):
     d.loc[d['studentAnswer']==d['correctAnswer'],'correct']=1
 
     return d
+
+def mapConcepts(df,conceptMapPath='data/concept_map.csv',badConcepts=['ZI','LP - long passage']):
+    '''
+    map the granular specific concepts to the broader set
+    returns data frame with broader mapping
+    '''
+    cm = pd.read_csv(conceptMapPath)
+    df2 = pd.merge(df,cm,how='left',on=['concept','subject'])
+    
+    #fill in blank broad concepts
+    df2['broad_concept'].fillna(df2['concept'], inplace=True)
+    
+    #remove bad concepts
+    df2.drop(df2.index[df2['broad_concept'].isin(badConcepts)],inplace=True)
+    
+    df2.drop('concept',axis=1,inplace=True)
+    df2.rename(columns = {'broad_concept':'concept'},inplace=True)
+    return df2
 
 def addNumConcepts(rawDF):
     '''

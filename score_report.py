@@ -16,7 +16,7 @@ import data_prep
 from yleana_util import *
 
 def makeHTMLTable(df):
-    return df.to_html(index=False)    .replace('<table border="1" class="dataframe">','<table class="table table-striped">') # use bootstrap styling
+    return df.to_html(index=False).replace('<table border="1" class="dataframe">','<table class="table table-striped">') # use bootstrap styling
     
 def groupData(df,columns,statVar):
     '''
@@ -158,7 +158,38 @@ def plotTrends(perfDF,studentID,subject,homeDir):
     figPath = homeDir + 'plots/' + figName
     fig.set_size_inches(6, 3)
     fig.savefig(figPath,dpi=100)
+    plt.close(fig)
     return figName
+
+def getStudentScoresByConcept(df,studentID,testID):
+    '''
+    Get student scores by column headings (eg. number of questions/number correct/difficulty) 
+    Get a dataframe of concepts in which this student got the most wrong answers, 
+    optionally specifying a difficulty level.
+    args:
+        df: raw dataframe
+        testID: test from which you want to build a recommendation table
+        firstName:first name of student
+        subject: math, reading, sentence, or writing
+        passingThreshold: minimum score to pass 
+        minWrong: minimum number of wrong answers to make a recommendation
+        toHTML: convert table to HTML (default True)
+    returns:
+        rec: Dataframe of concepts in which this student is farthest behind the rest of the class,
+                ranked by the difference between this student's % correct and the class avg.
+    '''
+    #optionally specify a testID, otherwise use all tests
+    if testID is not None:
+        df = df.loc[df['testID']==testID,:]
+        
+    df = df.loc[df['studentID'] == studentID,:]
+
+    rec = getPerfByColumns(df,['subject','concept','difficulty'],'correct')
+    rec = rec.sort('subject',ascending=False)
+
+    studentName = getStudentName(df,studentID)
+    outPath = 'scores_by_concept/'+testID+'/'+studentName + '_' + str(studentID) + '_' + testID + '.csv'
+    rec.to_csv(outPath, index=False)
 
 def conceptPerformanceOverTime(df,studentID,subject,concepts,homeDir):
     '''
@@ -176,7 +207,8 @@ def conceptPerformanceOverTime(df,studentID,subject,concepts,homeDir):
     figName = plotTrends(perf,studentID,subject,homeDir)
     return figName
 
-def buildRecTable(df,studentID,testID,subject,homeDir):
+#TODO: make lastTestID dynamically generated.  
+def buildRecTable(df,studentID,testID,lastTestID,subject,homeDir):
     '''
     Make HTML version of recommendation tables and line chart to compare focus concept performance over time
     args:
@@ -195,12 +227,12 @@ def buildRecTable(df,studentID,testID,subject,homeDir):
           'sentence':'Sentence Completion'
          }
     
-    focus = buildFocusTable(df,studentID,testID,subject,toHTML=False)
+    focus = buildFocusTable(df,studentID,testID,subject)
     opportunity = buildOpportunityTable(df,studentID,testID,subject,difficulty=None)
     careless = buildOpportunityTable(df,studentID,testID,subject,difficulty='easy')
 
-    focusHTML = makeHTMLTable(focus)
-    focusList = list(focus['concept'])
+    lastFocus = buildFocusTable(df,studentID,lastTestID,subject,toHTML=False)
+    focusList = list(lastFocus['concept'])
     figName = conceptPerformanceOverTime(df,studentID,subject,focusList,homeDir)
     
     html_string = '''
@@ -213,8 +245,8 @@ def buildRecTable(df,studentID,testID,subject,homeDir):
             <h3>Focus Concepts</h3>
             <p>Concepts where the student is furthest behind the rest of the class.\
             The plot shows progress on these concepts since the beginning of the course.</p>
-            <img src=../plots/'''+figName+'''>
-            '''+ focusHTML +'''
+            <img src=../../plots/'''+figName+'''>
+            '''+ focus +'''
         </div>
     </div>
     <div class="row">
@@ -234,7 +266,11 @@ def buildRecTable(df,studentID,testID,subject,homeDir):
     
     return html_string    
 
-def buildStudentScoreReport(df,studentID,testID,homeDir):
+def getStudentName(df,studentID):
+    studentName = df.loc[df['studentID']==studentID,'firstName'].iloc[0] + '_' + df.loc[df['studentID']==studentID,'lastName'].iloc[0]
+    return studentName
+
+def buildStudentScoreReport(df,studentID,testID,lastTestID,homeDir):
     '''
     Build an html score report for a given student and Test ID
     args:
@@ -242,14 +278,17 @@ def buildStudentScoreReport(df,studentID,testID,homeDir):
     returns: 
         html score report
     '''
-    studentName = df.loc[df['studentID']==studentID,'firstName'].iloc[0] + '_' + df.loc[df['studentID']==studentID,'lastName'].iloc[0]
+    studentName = getStudentName(df,studentID)
     
+    #make score tables for every student
+    getStudentScoresByConcept(df,studentID,testID)
+
     #create table dictionaries
     recTables = ''
 
     #Loop through subjects
     for subject in ['sentence','reading','math','writing']:
-        recTables=recTables + buildRecTable(df,studentID,testID, subject,homeDir)
+        recTables=recTables + buildRecTable(df,studentID,testID,lastTestID,subject,homeDir)
 
     html_string = '''
 <html>
@@ -308,18 +347,18 @@ def buildStudentScoreReport(df,studentID,testID,homeDir):
     with open(homeDir + "index.html", "a") as myfile:
         myfile.write(index)
     
-    f = open(homeDir + 'reports/'+outName,'w')
+    f = open(homeDir + 'reports/'+testID+'/'+outName,'w')
     f.write(html_string)
     f.close()
 
-def buildAllStudentReports(df,testID,homeDir):
+def buildAllStudentReports(df,testID,lastTestID,homeDir):
     '''
     loop through all students and write score reports for all of them
     '''
     print "Building all student reports..."
     for studentID in df['studentID'].unique():
         print "Building report for %s ..." % studentID
-        buildStudentScoreReport(df,studentID,testID,homeDir)
+        buildStudentScoreReport(df,studentID,testID,lastTestID,homeDir)
 
 def makeFakeSecondTest(df):
     df['testDate'] = datetime.datetime(2015, 6, 27)
@@ -329,14 +368,16 @@ def makeFakeSecondTest(df):
     return dfx2
 
 def main():
-    FN = 'data/diag 2015-06-28.csv'
+    FN = 'data/Test1and2.csv'
     rawDF = pd.read_csv(FN)
-    HOME_DIR = './'
-    TEST_ID = 'YL_1_PP_SAT_S0114'
     df = data_prep.clean_data(rawDF)
+    df = data_prep.mapConcepts(df)
     df = data_prep.addNumConcepts(df)
-    dfx2 = makeFakeSecondTest(df)
-    buildAllStudentReports(dfx2,testID=TEST_ID,homeDir=HOME_DIR)
+    df = data_prep.addDates(df)
+    HOME_DIR = './'
+    LAST_TEST_ID = 'YL_1_PP_SAT_S0114'
+    TEST_ID = 'YL_2_PP_SAT_S0112'
+    buildAllStudentReports(df,testID=TEST_ID,lastTestID=LAST_TEST_ID,homeDir=HOME_DIR)
 
 if __name__ == '__main__':
     main()
