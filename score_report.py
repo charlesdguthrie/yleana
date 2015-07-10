@@ -85,6 +85,7 @@ def buildFocusTable(df,studentID,testID,subject,passingThreshold=0.6,minWrong=5,
 def getPerfByColumns(df,columns,statVar):
     '''
     Get score by concept, by student, along with whether the score is above a passing threshold
+
     args:
         df: clean dataframe
         columns: columns to group by
@@ -103,6 +104,7 @@ def buildOpportunityTable(df,studentID,testID,subject,difficulty,toHTML=True):
     '''
     Get a dataframe of concepts in which this student got the most wrong answers, 
     optionally specifying a difficulty level.
+
     args:
         df: raw dataframe
         testID: test from which you want to build a recommendation table
@@ -137,6 +139,19 @@ def buildOpportunityTable(df,studentID,testID,subject,difficulty,toHTML=True):
         return rec
 
 def plotTrends(perfDF,studentID,subject,homeDir):
+    '''
+    draw a line chart of performance over time, with one line for each concept.
+    saves plots in the 'plots' directory
+
+    args:
+        perfDF: defined in conceptPerformanceOverTime, it is a table of scores 
+            for each studentID, testID, and concept.  
+        studentID: student ID (integer)
+        subject: either math, writing, sentence, or reading
+        homeDir: the directory where all the reports are kept
+    returns: 
+        the name of the figure produced.  
+    '''
     fig, ax = plt.subplots()
     concepts = perfDF.concept.unique()
     for concept in concepts:
@@ -164,8 +179,9 @@ def plotTrends(perfDF,studentID,subject,homeDir):
 def getStudentScoresByConcept(df,studentID,testID):
     '''
     Get student scores by column headings (eg. number of questions/number correct/difficulty) 
-    Get a dataframe of concepts in which this student got the most wrong answers, 
+    Export a csv of concepts in which this student got the most wrong answers, 
     optionally specifying a difficulty level.
+
     args:
         df: raw dataframe
         testID: test from which you want to build a recommendation table
@@ -175,7 +191,7 @@ def getStudentScoresByConcept(df,studentID,testID):
         minWrong: minimum number of wrong answers to make a recommendation
         toHTML: convert table to HTML (default True)
     returns:
-        rec: Dataframe of concepts in which this student is farthest behind the rest of the class,
+        CSV of concepts in which this student is farthest behind the rest of the class,
                 ranked by the difference between this student's % correct and the class avg.
     '''
     #optionally specify a testID, otherwise use all tests
@@ -194,6 +210,15 @@ def getStudentScoresByConcept(df,studentID,testID):
 def conceptPerformanceOverTime(df,studentID,subject,concepts,homeDir):
     '''
     Assuming we have dates of tests, measure performance of a given concept over time
+
+    args:
+        df: cleaned dataframe
+        studentID: student ID (integer)
+        subject: math, reading, sentence, or writing
+        concepts: list of concepts to chart (usually the top 5 focus concepts)
+        homeDir: the directory where all the reports are kept
+
+    returns: name of the figure that gets plotted.  
     '''
     
     #build a table that has the following columns: concept testID testDate score
@@ -272,7 +297,7 @@ def getStudentName(df,studentID):
 
 def buildStudentScoreReport(df,studentID,testID,lastTestID,homeDir):
     '''
-    Build an html score report for a given student and Test ID
+    Build an html score report for a given student and Test ID, and export csv of scores by concept.  
     args:
         df, studentID, testID, homeDir
     returns: 
@@ -368,6 +393,10 @@ def makeFakeSecondTest(df):
     return dfx2
 
 def main():
+    '''
+    This is the main function that runs everything.
+    Set variables here.
+    '''
     FN = 'data/Test1and2.csv'
     rawDF = pd.read_csv(FN)
     df = data_prep.clean_data(rawDF)
